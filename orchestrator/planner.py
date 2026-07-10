@@ -94,7 +94,10 @@ def _extract_json(text: str) -> dict[str, Any]:
     end = text.rfind("}")
     if start == -1 or end == -1:
         raise ValueError(f"No JSON object in model reply: {text[:200]}")
-    return json.loads(text[start : end + 1])
+    try:
+        return json.loads(text[start : end + 1])
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in model reply: {text[start:start+200]}") from e
 
 
 PLAN_SYSTEM = """You are the planner for an AWS engineering orchestrator.
@@ -243,6 +246,8 @@ class Planner:
 
     # ------------------------------------------------------------------ planning
     def _plan(self, request: str, log: DecisionLog) -> list[PlannedStep]:
+        if self.reasoner is None:
+            raise RuntimeError("Reasoner not configured — cannot generate plan")
         catalog = self.registry.catalog_for_prompt()
         user = f"CATALOG:\n{catalog}\n\nREQUEST:\n{request}"
         data = self.reasoner.complete_json(PLAN_SYSTEM, user)

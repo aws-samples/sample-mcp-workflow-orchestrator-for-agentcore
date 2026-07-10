@@ -28,7 +28,10 @@ class GatewayClient:
         self.gateway_url = gateway_url
         self.region = region
         self._session = boto3.Session(region_name=region)
-        self._credentials = self._session.get_credentials().get_frozen_credentials()
+        credentials = self._session.get_credentials()
+        if credentials is None:
+            raise RuntimeError("Failed to retrieve AWS credentials. Configure AWS CLI or set environment variables.")
+        self._credentials = credentials.get_frozen_credentials()
         self._request_id = 0
         # Session ID for the managed AWS MCP Server (direct connection)
         self._aws_mcp_session_id: str | None = None
@@ -117,12 +120,14 @@ class GatewayClient:
         req = urllib.request.Request(
             AWS_MCP_SERVER_URL, data=body, headers=headers, method="POST"
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            # Extract session ID from response headers
-            session_id = resp.headers.get("Mcp-Session-Id") or resp.headers.get("mcp-session-id")
-            if not session_id:
-                raise RuntimeError("AWS MCP Server did not return a session ID")
-            self._aws_mcp_session_id = session_id
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                session_id = resp.headers.get("Mcp-Session-Id") or resp.headers.get("mcp-session-id")
+                if not session_id:
+                    raise RuntimeError("AWS MCP Server did not return a session ID")
+                self._aws_mcp_session_id = session_id
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Failed to initialize AWS MCP session: {e}") from e
 
     async def search_tools(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         """Use Gateway's semantic tool search to shortlist relevant tools."""

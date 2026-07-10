@@ -23,12 +23,13 @@ REGION = os.getenv("AWS_REGION", "us-east-1")
 if not GW_URL:
     env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
     if os.path.exists(env_path):
-        for line in open(env_path):
-            line = line.strip()
-            if line.startswith("AGENTCORE_GATEWAY_URL="):
-                GW_URL = line.split("=", 1)[1].strip()
-            elif line.startswith("AWS_REGION="):
-                REGION = line.split("=", 1)[1].strip()
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("AGENTCORE_GATEWAY_URL="):
+                    GW_URL = line.split("=", 1)[1].strip()
+                elif line.startswith("AWS_REGION="):
+                    REGION = line.split("=", 1)[1].strip()
 
 if not GW_URL:
     print("ERROR: Set AGENTCORE_GATEWAY_URL in .env or environment")

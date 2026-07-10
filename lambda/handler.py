@@ -156,10 +156,12 @@ def _invoke_mcp_tool(arguments: dict[str, Any]) -> dict[str, Any]:
         import threading
         stdout_lines = []
         stderr_lines = []
+        stdout_lock = threading.Lock()
 
         def read_stdout():
             for line in proc.stdout:
-                stdout_lines.append(line)
+                with stdout_lock:
+                    stdout_lines.append(line)
 
         def read_stderr():
             for line in proc.stderr:
@@ -182,7 +184,9 @@ def _invoke_mcp_tool(arguments: dict[str, Any]) -> dict[str, Any]:
 
         while time.time() - start < wait_time:
             # Check if we got the tool response (id=2)
-            for line in stdout_lines:
+            with stdout_lock:
+                lines_snapshot = list(stdout_lines)
+            for line in lines_snapshot:
                 try:
                     msg = json.loads(line.strip())
                     if isinstance(msg, dict) and msg.get("id") == 2:

@@ -9,12 +9,18 @@ def _load_dotenv():
     """Load .env file if it exists (minimal implementation, no dependency)."""
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if env_path.exists():
+        # Sanity check: don't load files larger than 10KB
+        if env_path.stat().st_size > 10240:
+            return
         for line in env_path.read_text().splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+            key = key.strip()
+            # Validate key contains only safe characters
+            if key.isidentifier() or all(c.isalnum() or c in "_" for c in key):
+                os.environ.setdefault(key, value.strip())
 
 
 _load_dotenv()
