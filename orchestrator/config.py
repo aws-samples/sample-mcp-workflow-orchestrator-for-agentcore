@@ -12,7 +12,7 @@ def _load_dotenv():
         # Sanity check: don't load files larger than 10KB
         if env_path.stat().st_size > 10240:
             return
-        for line in env_path.read_text().splitlines():
+        for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue

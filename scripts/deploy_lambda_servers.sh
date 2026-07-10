@@ -65,6 +65,8 @@ else
         --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
         --query 'Role.Arn' --output text)
     aws iam attach-role-policy --role-name "$LAMBDA_ROLE_NAME" --policy-arn "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+    # NOTE: ReadOnlyAccess is used for the demo. For production, create a custom policy
+    # limiting access to only the specific APIs each Lambda needs (CloudWatch, CloudTrail, IAM, Pricing).
     aws iam attach-role-policy --role-name "$LAMBDA_ROLE_NAME" --policy-arn "arn:aws:iam::aws:policy/ReadOnlyAccess"
     aws iam attach-role-policy --role-name "$LAMBDA_ROLE_NAME" --policy-arn "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
     ok "Created: ${LAMBDA_ROLE_ARN}"
@@ -157,6 +159,8 @@ GATEWAY_ID=$(aws bedrock-agentcore-control list-gateways --region "$REGION" \
 
 if [[ "$GATEWAY_ID" == "None" || -z "$GATEWAY_ID" ]]; then
     log "Creating gateway..."
+    # NOTE: NONE authorizer used because inbound access is controlled via SigV4 signing
+    # from the orchestrator. For production with multiple clients, use AWS_IAM or CUSTOM_JWT.
     GATEWAY_ID=$(aws bedrock-agentcore-control create-gateway \
         --name "$GATEWAY_NAME" \
         --description "MCP Workflow Orchestrator" \

@@ -77,6 +77,11 @@ def _invoke_mcp_tool(arguments: dict[str, Any]) -> dict[str, Any]:
     """Spawn the MCP server, initialize it, list tools, and call the matching tool."""
     command = MCP_SERVER_COMMAND.split()
 
+    # Validate command to prevent injection attacks
+    allowed_prefixes = ("awslabs.", "python")
+    if not any(command[0].startswith(prefix) for prefix in allowed_prefixes):
+        return {"error": f"Invalid MCP_SERVER_COMMAND: {command[0]} not in allowed list"}
+
     # The awslabs packages install console scripts (e.g., "awslabs.cloudwatch-mcp-server")
     # In Lambda containers, pip installs scripts to /var/lang/bin/
     # Try the script directly first, fall back to python -m with underscores
@@ -96,7 +101,10 @@ def _invoke_mcp_tool(arguments: dict[str, Any]) -> dict[str, Any]:
             module_name = command[0].replace("-", "_")
             command = [sys.executable, "-m", module_name] + command[1:]
 
-    timeout = int(os.environ.get("MCP_TIMEOUT", "90"))
+    try:
+        timeout = int(os.environ.get("MCP_TIMEOUT", "90"))
+    except ValueError:
+        timeout = 90
 
     proc = subprocess.Popen(
         command,

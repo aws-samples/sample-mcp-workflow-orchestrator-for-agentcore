@@ -10,6 +10,7 @@ directly with MCP session management since it requires stateful sessions.
 from __future__ import annotations
 
 import json
+import ssl
 from typing import Any
 
 import boto3
@@ -18,6 +19,8 @@ from botocore.awsrequest import AWSRequest
 import urllib.request
 import urllib.error
 
+# SSL context for all HTTPS connections (certificate verification enabled)
+_SSL_CONTEXT = ssl.create_default_context()
 
 # The managed AWS MCP Server endpoint (requires session-based MCP, no OAuth)
 AWS_MCP_SERVER_URL = "https://aws-mcp.us-east-1.api.aws/mcp"
@@ -33,7 +36,6 @@ class GatewayClient:
             raise RuntimeError("Failed to retrieve AWS credentials. Configure AWS CLI or set environment variables.")
         self._credentials = credentials.get_frozen_credentials()
         self._request_id = 0
-        # Session ID for the managed AWS MCP Server (direct connection)
         self._aws_mcp_session_id: str | None = None
 
     def _next_id(self) -> int:
@@ -60,7 +62,7 @@ class GatewayClient:
             self.gateway_url, data=body, headers=signed_headers, method="POST"
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=120, context=_SSL_CONTEXT) as resp:
                 response_data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8") if e.fp else ""
@@ -73,7 +75,6 @@ class GatewayClient:
 
     def _call_aws_mcp_direct(self, method: str, params: dict | None = None) -> Any:
         """Send a JSON-RPC request directly to the managed AWS MCP Server (session-based)."""
-        # Initialize session if needed
         if self._aws_mcp_session_id is None:
             self._init_aws_mcp_session()
 
@@ -91,7 +92,7 @@ class GatewayClient:
             AWS_MCP_SERVER_URL, data=body, headers=headers, method="POST"
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=120, context=_SSL_CONTEXT) as resp:
                 response_data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8") if e.fp else ""
@@ -121,7 +122,7 @@ class GatewayClient:
             AWS_MCP_SERVER_URL, data=body, headers=headers, method="POST"
         )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=30, context=_SSL_CONTEXT) as resp:
                 session_id = resp.headers.get("Mcp-Session-Id") or resp.headers.get("mcp-session-id")
                 if not session_id:
                     raise RuntimeError("AWS MCP Server did not return a session ID")
