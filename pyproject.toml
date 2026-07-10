@@ -1,0 +1,28 @@
+[project]
+name = "aws-mcp-workflow-orchestrator"
+version = "0.1.0"
+description = "Open, explainable reference pattern for orchestrating AWS MCP servers on AgentCore"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT-0" }
+authors = [{ name = "Manish Roy" }]
+dependencies = [
+    "pyyaml>=6.0",
+    "pydantic>=2.6",
+    "mcp>=1.2.0",
+    "boto3>=1.34",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4"]
+
+[project.scripts]
+orchestrator = "orchestrator.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["orchestrator"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

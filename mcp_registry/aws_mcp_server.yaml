@@ -1,0 +1,9 @@
+server: aws-mcp-server
+gateway_target: aws-mcp-server
+domains: [docs, knowledge, troubleshooting]
+provides:
+  - capability: search_documentation
+    good_for: "looking up service limits, best practices, troubleshooting guides, and regional availability"
+  - capability: read_documentation
+    good_for: "reading full AWS documentation pages for detailed guidance"
+preconditions: []

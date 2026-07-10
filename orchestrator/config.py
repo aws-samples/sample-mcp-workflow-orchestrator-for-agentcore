@@ -1,0 +1,43 @@
+"""Configuration loaded from environment."""
+from __future__ import annotations
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+
+def _load_dotenv():
+    """Load .env file if it exists (minimal implementation, no dependency)."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        # Sanity check: don't load files larger than 10KB
+        if env_path.stat().st_size > 10240:
+            return
+        for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            # Validate key contains only safe characters
+            if key.isidentifier() or all(c.isalnum() or c in "_" for c in key):
+                os.environ.setdefault(key, value.strip())
+
+
+_load_dotenv()
+
+
+@dataclass(frozen=True)
+class Settings:
+    gateway_url: str = os.getenv("AGENTCORE_GATEWAY_URL", "")
+    region: str = os.getenv("AWS_REGION", "us-east-1")
+    planner_mode: str = os.getenv("PLANNER_MODE", "sop_first")  # sop_first | authoritative
+    planner_model_id: str = os.getenv(
+        "PLANNER_MODEL_ID", "anthropic.claude-sonnet-5"
+    )
+
+    def validate(self) -> None:
+        if self.planner_mode not in {"sop_first", "authoritative"}:
+            raise ValueError(f"Invalid PLANNER_MODE: {self.planner_mode}")
+
+
+settings = Settings()
