@@ -1,0 +1,13 @@
+server: iam-mcp
+gateway_target: iam-mcp
+domains: [security, incident]
+provides:
+  - capability: list_users
+    good_for: "listing IAM users in the account"
+  - capability: list_policies
+    good_for: "listing IAM policies"
+  - capability: get_managed_policy_document
+    good_for: "reading policy documents to detect overly-permissive statements"
+  - capability: simulate_principal_policy
+    good_for: "simulating whether a principal can perform specific actions"
+preconditions: [policy_arn]

@@ -1,93 +1,243 @@
-# aws-mcp-workflow-orchestrator
+# AWS MCP Workflow Orchestrator
 
+> An **open, explainable** orchestration layer that coordinates multiple AWS MCP servers through Amazon Bedrock AgentCore Gateway — so you can see exactly **how** the planner decides which server to call, in what order, how it correlates evidence across them, and how it explains its reasoning.
 
+[![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 
-## Getting started
+---
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Why This Exists
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+AWS has dozens of MCP servers — CloudWatch, CloudTrail, IAM, Pricing, Documentation — each exposing tools for a specific domain. But when you ask a cross-cutting question like *"My ECS service returns 503s — what happened?"*, no single server has the full answer. You need to:
 
-## Add your files
+1. Check CloudWatch for error metrics and logs
+2. Check CloudTrail for what was deployed and when
+3. Check IAM for any permission changes
+4. Cross-reference all of that to find the root cause
+5. Look up best practices for the fix
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+**Today, this orchestration happens manually.** AWS's managed solutions (DevOps Agent, AWS MCP Server SOPs) do this as a black box — you can't see or modify the reasoning.
+
+**This repo is the open, explainable alternative.** An AI planner that reasons over multiple MCP servers, records *why* it made each decision, and lets you add or remove servers without changing code.
+
+---
+
+## What It Does
 
 ```
-cd existing_repo
-git remote add origin https://code.aws.dev/personal_projects/alias_m/mkroy/aws-mcp-workflow-orchestrator.git
-git branch -M main
-git push -uf origin main
+You: "Someone changed IAM policies last night. Check who, what alarms fired, and give me security recommendations."
+
+Orchestrator:
+  Step 1 → iam-mcp / list_policies          (found 3 customer policies)
+  Step 2 → cloudtrail-mcp / lookup_events   (found AssumeRole + policy changes)
+  Step 3 → cloudwatch-mcp / get_active_alarms (no alarms firing)
+  Step 4 → documentation-mcp / search_documentation (S3 security best practices)
+  Step 5 → Correlate evidence from 4 servers
+  Step 6 → Synthesize answer with citations
+
+Answer: "Your account has 3 customer policies. CloudTrail shows AssumeRole events
+from... No alarms are firing. Recommended: enable CloudTrail metric filters for
+IAM changes..." [Sources: iam-mcp, cloudtrail-mcp, cloudwatch-mcp, documentation-mcp]
 ```
 
-## Integrate with your tools
+---
 
-* [Set up project integrations](https://code.aws.dev/personal_projects/alias_m/mkroy/aws-mcp-workflow-orchestrator/-/settings/integrations)
+## Key Features
 
-## Collaborate with your team
+- **Multi-server orchestration** — 6 MCP servers, 14 tools, all coordinated by a single planner
+- **Explainable planning** — every step records *why* a server was chosen (decision log you can audit)
+- **Pluggable registry** — add a server by dropping a YAML manifest; the planner adapts automatically
+- **Evidence correlation** — merges outputs across servers, attributes sources
+- **Hosted on AWS** — Lambda functions behind AgentCore Gateway, all IAM auth, no OAuth
+- **One-command deploy** — `./scripts/deploy_lambda_servers.sh` creates everything from zero
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+---
 
-## Test and Deploy
+## Architecture
 
-Use the built-in continuous integration in GitLab.
+```
+Your machine (CLI)
+    │
+    ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Orchestrator (this repo)                                    │
+│  ┌─────────┐  ┌──────────┐  ┌─────────────┐  ┌──────────┐  │
+│  │ Planner │→ │ Registry │→ │ Gateway     │→ │ Correlate│  │
+│  │(Bedrock)│  │ (YAML)   │  │ Client      │  │ Engine   │  │
+│  └─────────┘  └──────────┘  └─────────────┘  └──────────┘  │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+        ┌──────────────┼──────────────────────────┐
+        │              │                          │
+        ▼              ▼                          ▼
+  AgentCore Gateway    AWS MCP Server       (direct session)
+        │              (managed remote)
+        ├── Lambda: cloudwatch-mcp
+        ├── Lambda: cloudtrail-mcp
+        ├── Lambda: iam-mcp
+        ├── Lambda: pricing-mcp
+        └── Lambda: documentation-mcp
+```
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full write-up.
 
-***
+---
 
-# Editing this README
+## Quickstart
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Prerequisites
 
-## Suggestions for a good README
+- Python 3.11+
+- AWS CLI v2 with configured credentials
+- [Finch](https://github.com/runfinch/finch) (or Docker) for container builds
+- An AWS account with Bedrock + AgentCore access in `us-east-1`
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Deploy
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+git clone https://github.com/<you>/aws-mcp-workflow-orchestrator
+cd aws-mcp-workflow-orchestrator
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# Deploy all infrastructure (Lambda, ECR, Gateway, IAM roles)
+./scripts/deploy_lambda_servers.sh --region us-east-1
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+# Copy the output into .env
+cp .env.example .env
+# Edit .env with the AGENTCORE_GATEWAY_URL from deploy output
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### Install & Run
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# Run the orchestrator
+python -m orchestrator.cli "What are my CloudWatch alarms in us-east-1?"
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Test All Tools
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```bash
+python scripts/test_all_tools.py
+```
+
+### Tear Down
+
+```bash
+./scripts/destroy_lambda_servers.sh --region us-east-1
+```
+
+---
+
+## Adding a New MCP Server
+
+This is the core value proposition — **adding a server is a config change, not a code change.**
+
+### Step 1: Create a YAML manifest
+
+```yaml
+# mcp_registry/s3.yaml
+server: s3-mcp
+gateway_target: s3-mcp
+domains: [storage, security, data]
+provides:
+  - capability: list_buckets
+    good_for: "listing S3 buckets and their configurations"
+  - capability: get_bucket_policy
+    good_for: "checking bucket policies for public access or misconfigurations"
+preconditions: [region]
+```
+
+### Step 2: Create a Dockerfile
+
+```dockerfile
+# lambda/Dockerfile.s3
+FROM public.ecr.aws/lambda/python:3.12
+RUN pip install --no-cache-dir awslabs.mcp-lambda-handler awslabs.s3-mcp-server
+ENV MCP_SERVER_COMMAND="awslabs.s3-mcp-server"
+ENV MCP_TIMEOUT="90"
+COPY handler.py ${LAMBDA_TASK_ROOT}/
+CMD ["handler.lambda_handler"]
+```
+
+### Step 3: Add to the deploy script
+
+Add your server to the `SERVERS` list and `add_target` call in `scripts/deploy_lambda_servers.sh`, then redeploy.
+
+### Step 4: Done
+
+The planner automatically includes the new server in its reasoning next time it runs. No planner code changes needed.
+
+---
+
+## Repository Layout
+
+```
+orchestrator/           Core Python package
+  planner.py            Explainable planner (plan → act → observe → correlate → decide)
+  registry.py           Loads YAML manifests, presents capability catalog
+  gateway_client.py     MCP client (Gateway + direct AWS MCP Server)
+  correlation.py        Evidence correlation engine
+  decision_log.py       Structured reasoning trace
+  config.py             Settings from .env
+  cli.py                CLI entrypoint
+
+lambda/                 Lambda container images
+  handler.py            Generic handler (spawns MCP server subprocess)
+  Dockerfile.*          One per MCP server
+
+mcp_registry/           Pluggable server manifests (the extensibility contract)
+  aws_mcp_server.yaml
+  cloudwatch.yaml
+  cloudtrail.yaml
+  iam.yaml
+  pricing.yaml
+  well_architected.yaml
+
+scripts/                Infrastructure automation
+  deploy_lambda_servers.sh    One-command full deployment
+  destroy_lambda_servers.sh   One-command teardown
+  test_all_tools.py           Validates all 14 tools
+
+scenarios/              Example prompts and expected reasoning
+tests/                  Unit tests (no AWS credentials needed)
+docs/                   Architecture documentation
+```
+
+---
+
+## How It Works
+
+See [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md) for the detailed flow.
+
+---
+
+## Limitations
+
+| Limitation | Detail | Workaround |
+|-----------|--------|------------|
+| **Pricing queries require filters** | The AWS Pricing API returns 300K+ chars for unfiltered queries; the server returns a "use more specific filters" suggestion | Pass `service_code` + `filters` + `max_results` for targeted results |
+| **Single-pass planner** | The planner can't use output from step N as input to step N+1 in the same run (e.g., get a policy ARN then read it) | Run again with the specific ARN, or implement multi-turn planning |
+| **Lambda cold starts** | First invocation of each Lambda takes 5-15s (container image startup) | Subsequent calls are fast; use provisioned concurrency for production |
+| **aws-mcp-server auth** | The managed AWS MCP Server's `call_aws`/`run_script` tools require OAuth (session-based auth for write operations) | Use `search_documentation`/`read_documentation` (work without auth); Lambda targets handle all AWS API calls via IAM |
+| **Stdio MCP server buffering** | Some MCP servers (async/FastMCP-based) may have output buffering issues in Lambda's subprocess model | The handler uses threading + stdin close to force output; works for all tested servers |
+
+---
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Issues and PRs welcome — especially:
+- New server manifests under `mcp_registry/`
+- New Dockerfiles under `lambda/`
+- Planner prompt improvements
+- Multi-turn planning support
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+---
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+MIT-0. See [`LICENSE`](LICENSE).

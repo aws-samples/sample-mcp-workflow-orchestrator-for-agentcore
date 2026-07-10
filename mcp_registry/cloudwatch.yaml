@@ -1,0 +1,11 @@
+server: cloudwatch-mcp
+gateway_target: cloudwatch-mcp
+domains: [incident, observability, performance]
+provides:
+  - capability: get_metric_data
+    good_for: "reading metrics to spot latency, error, saturation changes"
+  - capability: get_active_alarms
+    good_for: "checking which CloudWatch alarms are currently firing"
+  - capability: execute_log_insights_query
+    good_for: "searching log patterns and anomalies around an incident window"
+preconditions: [namespace, metric_name]

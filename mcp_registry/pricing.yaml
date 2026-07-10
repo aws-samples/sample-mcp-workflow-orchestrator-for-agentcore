@@ -1,0 +1,9 @@
+server: pricing-mcp
+gateway_target: pricing-mcp
+domains: [cost, optimization]
+provides:
+  - capability: get_pricing
+    good_for: "getting pricing information for AWS services"
+  - capability: generate_cost_report
+    good_for: "generating cost estimation reports"
+preconditions: [service_code]

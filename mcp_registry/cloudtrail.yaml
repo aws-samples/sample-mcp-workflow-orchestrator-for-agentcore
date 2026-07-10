@@ -1,0 +1,7 @@
+server: cloudtrail-mcp
+gateway_target: cloudtrail-mcp
+domains: [incident, security, audit]
+provides:
+  - capability: lookup_events
+    good_for: "finding recent API changes that could explain an incident"
+preconditions: [time_window]

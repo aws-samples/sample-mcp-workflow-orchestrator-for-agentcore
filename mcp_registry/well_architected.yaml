@@ -1,0 +1,11 @@
+server: documentation-mcp
+gateway_target: documentation-mcp
+domains: [architecture, optimization, docs]
+provides:
+  - capability: search_documentation
+    good_for: "searching AWS documentation for best practices and guides"
+  - capability: read_documentation
+    good_for: "reading specific AWS documentation pages"
+  - capability: recommend
+    good_for: "getting AWS recommendations for architecture and optimization"
+preconditions: []
