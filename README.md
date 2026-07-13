@@ -5,6 +5,8 @@
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 
+> ⚠️ **Disclaimer**: This project is provided as sample/educational code and is NOT intended for production use without additional security hardening. See [SECURITY.md](SECURITY.md) for production recommendations.
+
 ---
 
 ## Why This Exists

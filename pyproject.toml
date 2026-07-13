@@ -7,11 +7,11 @@ requires-python = ">=3.11"
 license = { text = "MIT-0" }
 authors = [{ name = "Manish Roy" }]
 dependencies = [
-    "pyyaml>=6.0",
-    "pydantic>=2.6",
-    "mcp>=1.2.0",
-    "boto3>=1.34",
-    "rich>=13.7",
+    "pyyaml==6.0.3",
+    "pydantic==2.12.0",
+    "mcp==1.28.1",
+    "boto3==1.42.26",
+    "rich==14.2.0",
 ]
 
 [project.optional-dependencies]
