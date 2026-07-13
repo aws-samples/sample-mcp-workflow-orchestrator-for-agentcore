@@ -7,3 +7,6 @@ __pycache__/
 dist/
 build/
 BLOG.md
+scan-report.json
+pip-audit-report.json
+trivy-report.json
