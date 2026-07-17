@@ -68,7 +68,9 @@ No OAuth anywhere. All IAM within your account.
 
 ## Why Lambda Instead of AgentCore Runtime?
 
-AgentCore Runtime creates hostnames with underscores (e.g., `cloudwatch_mcp-xxx`), which are invalid DNS names. The Gateway rejects URLs with underscores. Lambda avoids this entirely — the Gateway invokes Lambda by ARN, no URL needed.
+AgentCore Runtime creates hostnames with underscores (e.g., `cloudwatch_mcp-xxx`), which are invalid DNS names per RFC 1035. The Gateway rejects URLs with underscores. Lambda avoids this entirely — the Gateway invokes Lambda by ARN, no URL needed.
+
+**Alternative:** If you use hyphenated names (e.g., `cloudwatch-mcp` instead of `cloudwatch_mcp`), AgentCore Runtime produces valid DNS hostnames and works correctly with the Gateway. This simplifies deployment — no Dockerfiles, no ECR, no custom handler — since Runtime manages the MCP server lifecycle for you. The orchestrator itself requires no changes either way; the Gateway abstraction means the planner doesn't know or care whether a target is a Lambda or a Runtime.
 
 ## The Pluggability Contract
 
