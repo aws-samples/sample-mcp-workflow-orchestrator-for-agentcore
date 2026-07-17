@@ -2,9 +2,11 @@
 
 > As MCP server catalogs grow, the hard problem shifts from building individual tools to **coordinating them intelligently**. This orchestrator solves that — it's the reasoning layer that decides which servers to call, when, and how to stitch their outputs into one coherent answer.
 
-An **open, explainable** orchestration layer that coordinates multiple AWS MCP servers through Amazon Bedrock AgentCore Gateway. Instead of connecting to one server at a time, it plans multi-step investigations across six servers (CloudWatch, CloudTrail, IAM, Pricing, Documentation, AWS MCP Server), executes them via a single Gateway connection, correlates the evidence, and produces a cited answer — all while recording **why** it made each decision in an auditable log.
+A **reference architecture for building multi-MCP-server systems** on Amazon Bedrock AgentCore. Instead of connecting to one server at a time, it shows how to plan multi-step investigations across multiple servers, execute them through a single Gateway connection, correlate cross-server evidence, and produce a cited answer — all while recording **why** each decision was made in an auditable log.
 
-**Use this when** you need to see, modify, or extend the reasoning behind multi-server AI orchestration — rather than relying on a managed black box.
+The six AWS MCP servers included (CloudWatch, CloudTrail, IAM, Pricing, Documentation, AWS MCP Server) are just one configuration. **The architecture is the value, not the specific servers.** Swap them for any combination of MCP servers — internal tools, third-party APIs, domain-specific services — and the orchestration pattern works the same. The planner adapts automatically from the YAML registry; no code changes needed.
+
+**Use this as a blueprint** for building any multi-MCP-server system where you need explainable coordination, pluggable server discovery, and cross-server evidence correlation.
 
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
@@ -17,11 +19,11 @@ An **open, explainable** orchestration layer that coordinates multiple AWS MCP s
 
 Use this project when you need to:
 
+- **Build a multi-MCP-server architecture** — you want a proven pattern for coordinating 2+ MCP servers behind a single gateway with a planner that routes intelligently
+- **Adapt it to your own domain** — replace the AWS MCP servers with your own (databases, internal APIs, SaaS tools) by dropping YAML manifests and Dockerfiles — the orchestration logic stays the same
 - **Understand multi-server orchestration** — you want to learn how an AI agent decides which MCP servers to call, in what order, and how to combine their outputs
 - **Audit agent reasoning** — you need a human-readable decision log that records *why* each tool was chosen (explainability, compliance, debugging)
-- **Add custom MCP servers** — you want to plug in your own servers (internal tools, third-party APIs) and have the planner adapt automatically without code changes
 - **Build on top of AgentCore** — you want a reference pattern showing how to integrate AgentCore Gateway, Lambda-hosted MCP servers, and Bedrock reasoning in one architecture
-- **Prototype cross-service investigations** — cost spike diagnosis, incident response, security audits, architecture reviews that span multiple AWS domains
 
 ## When NOT to Use This
 
@@ -44,7 +46,7 @@ AWS has dozens of MCP servers — CloudWatch, CloudTrail, IAM, Pricing, Document
 
 **Today, this orchestration happens manually.** AWS's managed solutions (DevOps Agent, AWS MCP Server SOPs) do this as a black box — you can't see or modify the reasoning.
 
-**This repo is the open, explainable alternative.** An AI planner that reasons over multiple MCP servers, records *why* it made each decision, and lets you add or remove servers without changing code.
+**This repo is the open, explainable alternative.** A reference architecture that shows how to build a multi-MCP-server system with an AI planner that reasons across servers, records every decision, and lets you swap or add servers without changing code. The AWS servers are the demo — the pattern applies to any MCP servers.
 
 ---
 
