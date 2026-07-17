@@ -1,11 +1,34 @@
 # AWS MCP Workflow Orchestrator
 
-> An **open, explainable** orchestration layer that coordinates multiple AWS MCP servers through Amazon Bedrock AgentCore Gateway — so you can see exactly **how** the planner decides which server to call, in what order, how it correlates evidence across them, and how it explains its reasoning.
+> As MCP server catalogs grow, the hard problem shifts from building individual tools to **coordinating them intelligently**. This orchestrator solves that — it's the reasoning layer that decides which servers to call, when, and how to stitch their outputs into one coherent answer.
+
+An **open, explainable** orchestration layer that coordinates multiple AWS MCP servers through Amazon Bedrock AgentCore Gateway. Instead of connecting to one server at a time, it plans multi-step investigations across six servers (CloudWatch, CloudTrail, IAM, Pricing, Documentation, AWS MCP Server), executes them via a single Gateway connection, correlates the evidence, and produces a cited answer — all while recording **why** it made each decision in an auditable log.
+
+**Use this when** you need to see, modify, or extend the reasoning behind multi-server AI orchestration — rather than relying on a managed black box.
 
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 
 > ⚠️ **Disclaimer**: This project is provided as sample/educational code and is NOT intended for production use without additional security hardening. See [SECURITY.md](SECURITY.md) for production recommendations.
+
+---
+
+## When to Use This
+
+Use this project when you need to:
+
+- **Understand multi-server orchestration** — you want to learn how an AI agent decides which MCP servers to call, in what order, and how to combine their outputs
+- **Audit agent reasoning** — you need a human-readable decision log that records *why* each tool was chosen (explainability, compliance, debugging)
+- **Add custom MCP servers** — you want to plug in your own servers (internal tools, third-party APIs) and have the planner adapt automatically without code changes
+- **Build on top of AgentCore** — you want a reference pattern showing how to integrate AgentCore Gateway, Lambda-hosted MCP servers, and Bedrock reasoning in one architecture
+- **Prototype cross-service investigations** — cost spike diagnosis, incident response, security audits, architecture reviews that span multiple AWS domains
+
+## When NOT to Use This
+
+- **You just need one MCP server** — if your use case involves a single server (e.g., only CloudWatch), connect it directly to your agent. No orchestration layer needed.
+- **You want a production-ready managed solution** — use [AWS DevOps Agent](https://aws.amazon.com/devops-agent/) (GA) or [AWS MCP Server Agent SOPs](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) instead. They're battle-tested, fully managed, and require no infrastructure maintenance.
+- **You don't need explainability** — if you don't care *why* the agent chose a particular tool and just want the answer, managed black-box solutions are simpler and faster to adopt.
+- **You need multi-turn planning** — this orchestrator currently runs a single-pass plan. If your workflow requires chaining outputs (step N feeds into step N+1), you'll need to extend it or wait for that feature.
 
 ---
 
