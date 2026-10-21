@@ -172,8 +172,7 @@ def _invoke_mcp_tool(arguments: dict[str, Any]) -> dict[str, Any]:
                     stdout_lines.append(line)
 
         def read_stderr():
-            for line in proc.stderr:
-                stderr_lines.append(line)
+            stderr_lines.extend(proc.stderr)
 
         t_out = threading.Thread(target=read_stdout, daemon=True)
         t_err = threading.Thread(target=read_stderr, daemon=True)

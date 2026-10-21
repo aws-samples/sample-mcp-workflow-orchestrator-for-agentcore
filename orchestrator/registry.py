@@ -27,7 +27,7 @@ class MCPServerManifest:
     preconditions: list[str]
 
     @classmethod
-    def from_dict(cls, d: dict) -> "MCPServerManifest":
+    def from_dict(cls, d: dict) -> MCPServerManifest:
         return cls(
             server=d["server"],
             gateway_target=d["gateway_target"],
@@ -42,7 +42,7 @@ class MCPRegistry:
         self._manifests = manifests
 
     @classmethod
-    def load(cls, directory: str | Path) -> "MCPRegistry":
+    def load(cls, directory: str | Path) -> MCPRegistry:
         directory = Path(directory)
         manifests = []
         for path in sorted(directory.glob("*.yaml")):
