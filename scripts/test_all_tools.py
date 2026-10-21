@@ -7,8 +7,8 @@ This script invokes each tool with valid arguments and reports success/failure.
 """
 import asyncio
 import json
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from orchestrator.gateway_client import GatewayClient
@@ -55,7 +55,7 @@ async def test_tool(gw, target, tool, args, label):
             print(f"  ✅ {label}")
             print(f"     {text[:200]}")
             return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - diagnostic harness reports any tool failure
         print(f"  ❌ {label}")
         print(f"     EXCEPTION: {str(e)[:200]}")
         return False

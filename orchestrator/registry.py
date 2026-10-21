@@ -5,8 +5,10 @@ Adding a server is a config change, not a code change — the planner reasons ov
 these manifests rather than hard-coding server names.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
+
 import yaml
 
 

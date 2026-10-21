@@ -1,10 +1,11 @@
 """Planner tests using a mocked reasoner and gateway (no AWS creds needed)."""
 from __future__ import annotations
+
 import asyncio
 from pathlib import Path
 
+from orchestrator.planner import BedrockReasoner, Planner
 from orchestrator.registry import MCPRegistry
-from orchestrator.planner import Planner, BedrockReasoner
 
 
 class FakeReasoner(BedrockReasoner):

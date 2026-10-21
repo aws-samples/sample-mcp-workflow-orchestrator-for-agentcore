@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import json
 import ssl
+import urllib.error
+import urllib.request
 from typing import Any
 
 import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
-import urllib.request
-import urllib.error
 
 # SSL context for all HTTPS connections (certificate verification enabled)
 _SSL_CONTEXT = ssl.create_default_context()

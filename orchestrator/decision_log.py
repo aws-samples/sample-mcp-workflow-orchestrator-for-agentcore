@@ -4,6 +4,7 @@ The decision log is the heart of the *explainability* differentiator: every plan
 step records WHY a server/tool was chosen so the reasoning can be audited or displayed.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any

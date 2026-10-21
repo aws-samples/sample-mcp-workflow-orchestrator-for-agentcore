@@ -22,10 +22,10 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from .registry import MCPRegistry, MCPServerManifest
-from .gateway_client import GatewayClient
-from .correlation import CorrelationEngine, CorrelatedFinding, Evidence
+from .correlation import CorrelatedFinding, CorrelationEngine, Evidence
 from .decision_log import DecisionLog
+from .gateway_client import GatewayClient
+from .registry import MCPRegistry, MCPServerManifest
 
 # Max plan/act/observe iterations before we force a decision (guards against loops).
 MAX_STEPS = 8

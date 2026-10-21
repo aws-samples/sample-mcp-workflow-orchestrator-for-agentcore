@@ -1,5 +1,6 @@
 """Local CLI entrypoint."""
 from __future__ import annotations
+
 import argparse
 import asyncio
 from pathlib import Path
@@ -7,9 +8,9 @@ from pathlib import Path
 from rich.console import Console
 
 from .config import settings
-from .registry import MCPRegistry
 from .gateway_client import GatewayClient
-from .planner import Planner, BedrockReasoner
+from .planner import BedrockReasoner, Planner
+from .registry import MCPRegistry
 
 console = Console()
 

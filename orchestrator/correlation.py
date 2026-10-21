@@ -5,6 +5,7 @@ finding: de-duplicates, resolves conflicts, and attaches source attribution so t
 final answer is explainable and auditable.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any
 
