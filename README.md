@@ -221,7 +221,7 @@ mcp_registry/           Pluggable server manifests (the extensibility contract)
   cloudtrail.yaml
   iam.yaml
   pricing.yaml
-  well_architected.yaml
+  documentation.yaml
 
 scripts/                Infrastructure automation
   deploy_lambda_servers.sh    One-command full deployment

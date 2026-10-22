@@ -60,7 +60,7 @@ CloudWatch CloudTrail  IAM     Pricing   Documentation
 ```
 Orchestrator → Gateway:     SigV4 (your AWS credentials)
 Gateway → Lambda:           IAM invoke (Gateway role)
-Lambda → AWS APIs:          IAM (Lambda execution role with ReadOnlyAccess)
+Lambda → AWS APIs:          IAM (action-scoped, read-only Lambda execution role)
 Orchestrator → AWS MCP:     Session-based MCP (no OAuth for docs tools)
 ```
 

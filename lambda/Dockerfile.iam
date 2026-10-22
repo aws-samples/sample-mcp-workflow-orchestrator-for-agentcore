@@ -1,16 +1,15 @@
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install the IAM MCP server and Lambda handler
+# Install the IAM MCP server and Lambda handler. The server is read-only by
+# default; do not pass its --allow-write opt-in flag in this sample.
 RUN pip install --no-cache-dir --upgrade \
     awslabs.mcp-lambda-handler \
     awslabs.iam-mcp-server
 
-# Set the MCP server command that the handler will wrap
 ENV MCP_SERVER_COMMAND="awslabs.iam-mcp-server"
-ENV LOG_LEVEL="INFO"
+ENV LOG_LEVEL="WARNING"
 ENV MCP_TIMEOUT="90"
 
-# Copy the generic handler
 COPY handler.py ${LAMBDA_TASK_ROOT}/
 
 CMD ["handler.lambda_handler"]

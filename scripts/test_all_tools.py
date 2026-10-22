@@ -1,222 +1,130 @@
-"""Test all 14 tools across 6 MCP servers.
+"""Guarded live integration test for deployed MCP tools.
 
-Usage:
-  python scripts/test_all_tools.py
-
-This script invokes each tool with valid arguments and reports success/failure.
+Run only in a declared disposable sandbox account:
+  MCP_INTEGRATION_TEST=1 MCP_SANDBOX_ACCOUNT_ID=123456789012 \
+    python scripts/test_all_tools.py
 """
+from __future__ import annotations
+
 import asyncio
 import json
 import os
 import sys
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import boto3
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from orchestrator.gateway_client import GatewayClient
 
-GW_URL = os.getenv(
-    "AGENTCORE_GATEWAY_URL",
-    "",
-)
-REGION = os.getenv("AWS_REGION", "us-east-1")
 
-# Load from .env if not set
-if not GW_URL:
-    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("AGENTCORE_GATEWAY_URL="):
-                    GW_URL = line.split("=", 1)[1].strip()
-                elif line.startswith("AWS_REGION="):
-                    REGION = line.split("=", 1)[1].strip()
-
-if not GW_URL:
-    print("ERROR: Set AGENTCORE_GATEWAY_URL in .env or environment")
-    sys.exit(1)
+def _load_settings() -> tuple[str, str]:
+    gateway_url = os.getenv("AGENTCORE_GATEWAY_URL", "")
+    region = os.getenv("AWS_REGION", "us-east-1")
+    if gateway_url:
+        return gateway_url, region
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            key, _, value = line.strip().partition("=")
+            if key == "AGENTCORE_GATEWAY_URL":
+                gateway_url = value.strip()
+            elif key == "AWS_REGION":
+                region = value.strip()
+    if not gateway_url:
+        raise RuntimeError("Set AGENTCORE_GATEWAY_URL in .env or the environment")
+    return gateway_url, region
 
 
-async def test_tool(gw, target, tool, args, label):
-    """Test a single tool and return pass/fail."""
-    try:
-        result = await gw.invoke(target, tool, args)
-        text = json.dumps(result, default=str)
-        # Check for errors
-        is_error = result.get("isError", False)
-        has_error_text = "Error executing tool" in text or "Unknown tool" in text
-        # result_too_large is actually a success (server responded with real data)
-        is_too_large = "result_too_large" in text
+def _verify_sandbox(region: str) -> None:
+    if os.getenv("MCP_INTEGRATION_TEST") != "1":
+        raise RuntimeError("Set MCP_INTEGRATION_TEST=1 to run live tests")
+    expected_account = os.getenv("MCP_SANDBOX_ACCOUNT_ID", "")
+    if not expected_account.isdigit() or len(expected_account) != 12:
+        raise RuntimeError("Set MCP_SANDBOX_ACCOUNT_ID to the 12-digit sandbox account ID")
+    actual_account = boto3.client("sts", region_name=region).get_caller_identity()["Account"]
+    if actual_account != expected_account:
+        raise RuntimeError(
+            f"Refusing to test account {actual_account}; expected sandbox {expected_account}"
+        )
 
-        if is_error or (has_error_text and not is_too_large):
-            print(f"  ❌ {label}")
-            print(f"     {text[:300]}")
-            return False
-        else:
-            print(f"  ✅ {label}")
-            print(f"     {text[:200]}")
+
+def _is_error(result: object) -> bool:
+    if not isinstance(result, dict):
+        return True
+    if result.get("error") or result.get("isError"):
+        return True
+    for item in result.get("content", []):
+        if not isinstance(item, dict) or item.get("type") != "text":
+            continue
+        text = item.get("text", "")
+        if not isinstance(text, str):
+            continue
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("error"):
             return True
-    except Exception as e:  # noqa: BLE001 - diagnostic harness reports any tool failure
-        print(f"  ❌ {label}")
-        print(f"     EXCEPTION: {str(e)[:200]}")
+    return False
+
+
+async def _test_tool(gateway: GatewayClient, target: str, tool: str, args: dict) -> bool:
+    label = f"{target} / {tool}"
+    try:
+        result = await gateway.invoke(target, tool, args)
+    except Exception as error:  # noqa: BLE001 - integration harness reports failure type only
+        print(f"FAIL {label}: {type(error).__name__}")
         return False
+    if _is_error(result):
+        print(f"FAIL {label}: tool returned an error")
+        return False
+    print(f"PASS {label}")
+    return True
 
 
-async def main():
-    gw = GatewayClient(GW_URL, REGION)
-    results = {"passed": 0, "failed": 0, "total": 0}
-
-    # ─── STEP 1: aws-mcp-server (2 tools) ────────────────────────────────
-    print()
-    print("═" * 70)
-    print("  STEP 1: aws-mcp-server (2 tools)")
-    print("═" * 70)
-    print()
-
+async def _run() -> int:
+    gateway_url, region = _load_settings()
+    _verify_sandbox(region)
+    gateway = GatewayClient(gateway_url, region)
+    policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+    policy_version = boto3.client("iam", region_name=region).get_policy(
+        PolicyArn=policy_arn
+    )["Policy"]["DefaultVersionId"]
+    now = datetime.now(UTC)
+    start = (now - timedelta(hours=1)).isoformat()
+    end = now.isoformat()
     tests = [
-        ("aws-mcp-server", "search_documentation",
-         {"search_phrase": "Lambda cold start optimization"},
-         "search_documentation"),
-        ("aws-mcp-server", "read_documentation",
-         {"requests": [{"url": "https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html"}]},
-         "read_documentation"),
+        ("aws-mcp-server", "search_documentation", {"search_phrase": "Lambda cold start optimization"}),
+        ("aws-mcp-server", "read_documentation", {"requests": [{"url": "https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html"}]}),
+        ("cloudwatch-mcp", "get_active_alarms", {}),
+        ("cloudwatch-mcp", "get_metric_data", {"namespace": "AWS/Lambda", "metric_name": "Invocations"}),
+        ("cloudwatch-mcp", "execute_log_insights_query", {"log_group_names": ["/aws/lambda/mcp-cloudwatch"], "query_string": "fields @timestamp | limit 5", "start_time": start, "end_time": end}),
+        ("cloudtrail-mcp", "lookup_events", {}),
+        ("iam-mcp", "list_users", {}),
+        ("iam-mcp", "list_policies", {"scope": "Local"}),
+        ("iam-mcp", "get_managed_policy_document", {"policy_arn": policy_arn, "version_id": policy_version}),
+        ("pricing-mcp", "get_pricing", {"service_code": "AmazonEC2", "region": "us-east-1", "filters": [{"Field": "instanceType", "Type": "TERM_MATCH", "Value": "t3.medium"}], "max_results": 1}),
+        ("pricing-mcp", "generate_cost_report", {"pricing_data": {"service_code": "AmazonEC2", "region": "us-east-1"}, "service_name": "Amazon EC2"}),
+        ("documentation-mcp", "search_documentation", {"search_phrase": "S3 bucket security best practices"}),
+        ("documentation-mcp", "read_documentation", {"url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html"}),
+        ("documentation-mcp", "recommend", {"url": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html"}),
     ]
-    for target, tool, args, label in tests:
-        results["total"] += 1
-        if await test_tool(gw, target, tool, args, f"{target} / {label}"):
-            results["passed"] += 1
-        else:
-            results["failed"] += 1
-        print()
+    results = [await _test_tool(gateway, target, tool, args) for target, tool, args in tests]
+    passed = sum(results)
+    print(f"RESULTS: {passed}/{len(tests)} passed, {len(tests) - passed} failed")
+    return 0 if all(results) else 1
 
-    # ─── STEP 2: cloudwatch-mcp (3 tools) ────────────────────────────────
-    print("═" * 70)
-    print("  STEP 2: cloudwatch-mcp (3 tools)")
-    print("═" * 70)
-    print()
 
-    tests = [
-        ("cloudwatch-mcp", "get_active_alarms",
-         {},
-         "get_active_alarms"),
-        ("cloudwatch-mcp", "get_metric_data",
-         {"namespace": "AWS/Lambda", "metric_name": "Invocations"},
-         "get_metric_data"),
-        ("cloudwatch-mcp", "execute_log_insights_query",
-         {"log_group_names": ["/aws/lambda/mcp-cloudwatch"],
-          "query_string": "fields @timestamp, @message | sort @timestamp desc | limit 5",
-          "start_time": "2026-07-09T00:00:00Z",
-          "end_time": "2026-07-10T23:59:59Z"},
-         "execute_log_insights_query"),
-    ]
-    for target, tool, args, label in tests:
-        results["total"] += 1
-        if await test_tool(gw, target, tool, args, f"{target} / {label}"):
-            results["passed"] += 1
-        else:
-            results["failed"] += 1
-        print()
-
-    # ─── STEP 3: cloudtrail-mcp (1 tool) ─────────────────────────────────
-    print("═" * 70)
-    print("  STEP 3: cloudtrail-mcp (1 tool)")
-    print("═" * 70)
-    print()
-
-    tests = [
-        ("cloudtrail-mcp", "lookup_events",
-         {},
-         "lookup_events"),
-    ]
-    for target, tool, args, label in tests:
-        results["total"] += 1
-        if await test_tool(gw, target, tool, args, f"{target} / {label}"):
-            results["passed"] += 1
-        else:
-            results["failed"] += 1
-        print()
-
-    # ─── STEP 4: iam-mcp (3 tools) ───────────────────────────────────────
-    print("═" * 70)
-    print("  STEP 4: iam-mcp (3 tools)")
-    print("═" * 70)
-    print()
-
-    tests = [
-        ("iam-mcp", "list_users",
-         {},
-         "list_users"),
-        ("iam-mcp", "list_policies",
-         {"scope": "Local"},
-         "list_policies"),
-        ("iam-mcp", "get_managed_policy_document",
-         {"policy_arn": "arn:aws:iam::aws:policy/ReadOnlyAccess", "version_id": "v1"},
-         "get_managed_policy_document"),
-    ]
-    for target, tool, args, label in tests:
-        results["total"] += 1
-        if await test_tool(gw, target, tool, args, f"{target} / {label}"):
-            results["passed"] += 1
-        else:
-            results["failed"] += 1
-        print()
-
-    # ─── STEP 5: pricing-mcp (2 tools) ───────────────────────────────────
-    print("═" * 70)
-    print("  STEP 5: pricing-mcp (2 tools)")
-    print("═" * 70)
-    print()
-
-    tests = [
-        ("pricing-mcp", "get_pricing",
-         {"service_code": "AmazonEC2", "region": "us-east-1",
-          "filters": [{"Field": "instanceType", "Type": "TERM_MATCH", "Value": "t3.medium"}]},
-         "get_pricing"),
-        ("pricing-mcp", "generate_cost_report",
-         {"service_code": "AmazonEC2", "pricing_data": "t3.medium on-demand us-east-1"},
-         "generate_cost_report"),
-    ]
-    for target, tool, args, label in tests:
-        results["total"] += 1
-        if await test_tool(gw, target, tool, args, f"{target} / {label}"):
-            results["passed"] += 1
-        else:
-            results["failed"] += 1
-        print()
-
-    # ─── STEP 6: documentation-mcp (3 tools) ─────────────────────────────
-    print("═" * 70)
-    print("  STEP 6: documentation-mcp (3 tools)")
-    print("═" * 70)
-    print()
-
-    tests = [
-        ("documentation-mcp", "search_documentation",
-         {"search_phrase": "S3 bucket security best practices"},
-         "search_documentation"),
-        ("documentation-mcp", "read_documentation",
-         {"url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html"},
-         "read_documentation"),
-        ("documentation-mcp", "recommend",
-         {"url": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html"},
-         "recommend"),
-    ]
-    for target, tool, args, label in tests:
-        results["total"] += 1
-        if await test_tool(gw, target, tool, args, f"{target} / {label}"):
-            results["passed"] += 1
-        else:
-            results["failed"] += 1
-        print()
-
-    # ─── Summary ──────────────────────────────────────────────────────────
-    print("═" * 70)
-    print(f"  RESULTS: {results['passed']}/{results['total']} passed, {results['failed']} failed")
-    print("═" * 70)
-    print()
-
-    if results["failed"] > 0:
-        sys.exit(1)
+def main() -> None:
+    try:
+        raise SystemExit(asyncio.run(_run()))
+    except RuntimeError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        raise SystemExit(2) from error
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

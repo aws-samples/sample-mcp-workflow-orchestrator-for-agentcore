@@ -116,7 +116,7 @@ The available servers and their EXACT tool names and required arguments are:
    - `get_metric_data`: Get metric data points.
      Args: {"namespace": "AWS/EC2", "metric_name": "CPUUtilization"}
    - `execute_log_insights_query`: Run a Logs Insights query.
-     Args: {"log_group_names": ["/aws/lambda/my-func"], "query": "fields @timestamp | limit 10"}
+     Args: {"log_group_names": ["/aws/lambda/my-func"], "query_string": "fields @timestamp | limit 10", "start_time": "2026-07-08T00:00:00Z", "end_time": "2026-07-09T00:00:00Z"}
 
 3. **cloudtrail-mcp** (audit/changes):
    - `lookup_events`: Find recent API events.
@@ -134,7 +134,7 @@ The available servers and their EXACT tool names and required arguments are:
    - `get_pricing`: Get pricing for a service.
      Args: {"service_code": "AmazonEC2"} or {"service_code": "AmazonEC2", "region": "us-east-1"}
    - `generate_cost_report`: Generate cost report.
-     Args: {"service_code": "AmazonEC2", "usage_description": "t3.medium 24/7"}
+     Args: {"pricing_data": {"service_code": "AmazonEC2"}, "service_name": "Amazon EC2"}
 
 6. **documentation-mcp** (architecture/well-architected):
    - `search_documentation`: Search AWS docs.
@@ -142,7 +142,7 @@ The available servers and their EXACT tool names and required arguments are:
    - `read_documentation`: Read a doc page.
      Args: {"url": "https://docs.aws.amazon.com/..."}
    - `recommend`: Get recommendations.
-     Args: {"topic": "S3 security"}
+     Args: {"url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html"}
 
 CRITICAL RULES:
 - Use EXACTLY the tool names shown above (e.g., "get_active_alarms" not "get_alarms")

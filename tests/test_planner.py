@@ -17,7 +17,7 @@ class FakeReasoner(BedrockReasoner):
             return {
                 "domains": ["cost"],
                 "plan": [
-                    {"server": s, "tool": "get_current_pricing", "arguments": {}, "rationale": "test"}
+                    {"server": s, "tool": "get_pricing", "arguments": {"service_code": "AmazonEC2"}, "rationale": "test"}
                     for s in self._plan_servers
                 ],
             }
