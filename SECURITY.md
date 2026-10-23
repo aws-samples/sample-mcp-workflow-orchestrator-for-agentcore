@@ -47,4 +47,4 @@ python scripts/test_all_tools.py
 
 ## Cleanup
 
-The teardown script deletes Gateway targets, the Gateway, Lambda functions, ECR repositories and images, and IAM roles. Review the configured account and Region before running it. Never run cleanup against a shared or production account.
+The teardown script requires `--sandbox-account-id` and verifies it against AWS STS before listing or deleting resources. It then deletes matching fixed-name Gateway targets, the Gateway, Lambda functions, ECR repositories and images, and IAM roles. Always run `--dry-run` first, inspect any name collision, and use only a personal test account with no important workloads or data.

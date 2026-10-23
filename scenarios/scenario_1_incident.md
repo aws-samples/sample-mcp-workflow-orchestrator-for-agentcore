@@ -1,13 +1,13 @@
 # Scenario 1 — Production Incident
 
-**Prompt:** "My ECS application is returning 503s after yesterday's deployment."
+**Prompt:** "My ECS application is returning 503s after yesterday's deployment. Use this supplied time window and relevant metric names."
 
-**Expected explainable plan:**
-1. **CloudWatch** `get_metrics` — *why:* confirm error/latency spike and pin the incident window.
-2. **CloudTrail** `recent_changes` — *why:* find the deploy/config change in that window.
-3. **AWS MCP Server** `search_documentation` — *why:* check relevant service limits/known 503 causes.
-4. **IAM** `recent_policy_changes` — *why:* rule out a permission change as the trigger.
-5. **Correlate** — merge into a root-cause narrative with source attribution.
-6. **Decide** — emit remediation + confidence.
+**Expected static plan:**
+1. **CloudWatch** `get_metric_data` — confirm whether the supplied error or latency metric changed.
+2. **CloudTrail** `lookup_events` — inspect API activity in the caller-supplied time window.
+3. **AWS MCP Server** `search_documentation` — find current troubleshooting guidance for the service.
+4. **IAM** `list_policies` — list managed policies for later human inspection if permissions are relevant.
+5. **Correlate** — group observations with their source-server labels.
+6. **Decide** — summarize supported findings and missing evidence.
 
-In `sop_first` mode, step 0 checks whether AWS MCP Server has an incident SOP that fits before planning.
+The plan is static: output from one call is not used to construct later tool arguments. In experimental `sop_first` mode, the planner tries an unverified managed-workflow check before planning; use `authoritative` for the tested path.

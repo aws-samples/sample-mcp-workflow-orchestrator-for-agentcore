@@ -1,15 +1,12 @@
-# Scenario 2 — Architecture Review
+# Scenario 2 — Architecture Guidance
 
-**Prompt:** "Review my architecture." (workload description supplied as context)
+**Prompt:** "Find current AWS guidance and public pricing inputs for this supplied workload and migration target."
 
-**Expected explainable plan:**
-1. **Well-Architected** `review_workload` — *why:* evaluate the workload against the six WA pillars to surface risks.
-2. **AWS MCP Server** `search_documentation` — *why:* pull current AWS recommendations/best practices for the flagged areas.
-3. **Pricing** `get_current_pricing` — *why:* estimate the cost impact of the proposed improvements.
-4. **Well-Architected** `recommendations` — *why:* produce a prioritized improvement list grounded in the findings above.
-5. **Correlate** — *why:* combine pillar findings + docs + cost into one optimization report with source attribution.
-6. **Decide** — *why:* emit the report and confidence.
+**Expected static plan:**
+1. **Documentation** `search_documentation` — find current AWS architecture guidance.
+2. **Documentation** `read_documentation` or `recommend` — read or expand from a caller-supplied documentation URL.
+3. **Pricing** `get_pricing` — retrieve filtered public pricing for a specified service and Region.
+4. **Correlate** — group documentation and pricing observations by source.
+5. **Decide** — summarize inputs for a human architecture review.
 
-**Domains exercised:** `architecture`, `docs`, `cost`, `optimization`.
-
-In `sop_first` mode, the planner first checks for a Well-Architected review SOP on AWS MCP Server; if one fits, it defers to it.
+This sample does not perform an AWS Well-Architected workload review or calculate workload-specific cost. In experimental `sop_first` mode, it tries an unverified managed-workflow check; use `authoritative` for the tested path.

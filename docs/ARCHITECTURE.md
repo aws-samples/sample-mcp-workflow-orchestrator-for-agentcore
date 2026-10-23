@@ -6,9 +6,9 @@
 
 2. **Explainability over black-box** — Every decision is recorded with a rationale. You can audit, debug, and improve the reasoning.
 
-3. **Pluggability over hard-coding** — Server manifests (YAML) define what's available. The planner never names a specific server in its code.
+3. **Declarative discovery, explicit execution contracts** — YAML manifests define capability names, domains, and descriptions for planner discovery. Gateway schemas, Lambda allowlists, IAM actions, and planner argument contracts remain explicit review points.
 
-4. **Domain-specific over generic** — Instead of one "do anything" tool, each server handles its domain with proper permissions, scoped IAM roles, and purpose-built interfaces.
+4. **Domain-specific over generic** — Instead of one "do anything" tool, each server exposes purpose-built interfaces. This sample uses one shared action-scoped, read-only Lambda role; production deployments should separate roles by trust boundary.
 
 ## System Diagram
 
@@ -51,7 +51,7 @@ CloudWatch CloudTrail  IAM     Pricing   Documentation
 | **Planner** | `orchestrator/planner.py` | Calls Bedrock to plan, execute, and synthesize. The "brain." |
 | **Registry** | `orchestrator/registry.py` | Loads YAML manifests, generates capability catalog for the planner prompt |
 | **Gateway Client** | `orchestrator/gateway_client.py` | Routes tool calls to Gateway (Lambda targets) or AWS MCP Server (direct session) |
-| **Correlation Engine** | `orchestrator/correlation.py` | Merges evidence across servers, tracks sources, flags conflicts |
+| **Correlation Engine** | `orchestrator/correlation.py` | Groups observations across servers and retains source attribution for synthesis |
 | **Decision Log** | `orchestrator/decision_log.py` | Records every reasoning step for auditability |
 | **Lambda Handler** | `lambda/handler.py` | Spawns stdio MCP servers as subprocesses in Lambda containers |
 
@@ -61,10 +61,10 @@ CloudWatch CloudTrail  IAM     Pricing   Documentation
 Orchestrator → Gateway:     SigV4 (your AWS credentials)
 Gateway → Lambda:           IAM invoke (Gateway role)
 Lambda → AWS APIs:          IAM (action-scoped, read-only Lambda execution role)
-Orchestrator → AWS MCP:     Session-based MCP (no OAuth for docs tools)
+Orchestrator → AWS MCP:     Direct session-based MCP, not through the Gateway (docs tools only)
 ```
 
-No OAuth anywhere. All IAM within your account.
+The Gateway uses `AWS_IAM` inbound authorization, so unsigned requests are rejected. The deploy script checks this before it attaches any targets. No OAuth is used.
 
 ## Why Lambda Instead of AgentCore Runtime?
 
@@ -72,11 +72,13 @@ AgentCore Runtime creates hostnames with underscores (e.g., `cloudwatch_mcp-xxx`
 
 **Alternative:** If you use hyphenated names (e.g., `cloudwatch-mcp` instead of `cloudwatch_mcp`), AgentCore Runtime produces valid DNS hostnames and works correctly with the Gateway. This simplifies deployment — no Dockerfiles, no ECR, no custom handler — since Runtime manages the MCP server lifecycle for you. The orchestrator itself requires no changes either way; the Gateway abstraction means the planner doesn't know or care whether a target is a Lambda or a Runtime.
 
-## The Pluggability Contract
+## The Extensibility Contract
 
-Adding a new MCP server requires:
-1. A YAML manifest in `mcp_registry/` (declares capabilities and domains)
-2. A Dockerfile in `lambda/` (packages the server for Lambda)
-3. An entry in the deploy script (registers as a Gateway target with tool schemas)
+Adding a new Lambda-backed MCP server requires:
+1. A YAML manifest in `mcp_registry/` for capability discovery and domain routing
+2. A Dockerfile in `lambda/` to package the server
+3. A deploy-script entry with the Gateway input schema, Lambda allowlist, and scoped IAM actions
+4. The exact tool and argument contract in `PLAN_SYSTEM` in `orchestrator/planner.py`
+5. A guarded integration-test case validated in a personal test account with no important workloads or data
 
-The planner reads manifests at runtime. It automatically incorporates new servers into its reasoning without any code changes to `planner.py`.
+The orchestration loop does not need to change, but these explicit contracts prevent the planner and Gateway from guessing how a new tool is invoked.

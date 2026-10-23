@@ -1,12 +1,15 @@
 # Contributing
 
-Thanks for your interest! The easiest high-value contribution is a **new MCP server manifest**.
+Thanks for your interest! A useful contribution is a reviewed MCP server integration.
 
 ## Add a server
-1. Create `mcp_registry/<server>.yaml` following the existing files.
-2. Tag it with the right `domains` so the planner can route to it.
-3. Add a scenario under `scenarios/` if it enables a new workflow.
-4. Run `pytest` and `ruff check .`.
 
-No planner code changes should be needed — if they are, open an issue so we can keep the
-registry contract expressive enough to stay declarative.
+1. Create `mcp_registry/<server>.yaml` following the existing manifests, including capability names, descriptions, domains, and preconditions.
+2. Add a Dockerfile under `lambda/` that packages the server.
+3. In `scripts/deploy_lambda_servers.sh`, add the server name, exact Gateway input schema, Lambda tool allowlist, and only the AWS API actions it needs.
+4. Add the same exact tool names and argument fields to `PLAN_SYSTEM` in `orchestrator/planner.py`. Manifests currently do not contain complete input schemas, so the planner prompt must be updated explicitly.
+5. Add a safe case to the guarded live integration harness.
+6. Run `pytest -q` and `ruff check .`.
+7. Validate live behavior only in a personal test account with no important workloads or data.
+
+Keep the reusable orchestration loop unchanged unless the contribution requires a new orchestration capability. Never commit credentials, account output, customer data, or internal references.

@@ -1,14 +1,11 @@
-# Scenario 4 — Security Review
+# Scenario 4 — IAM Policy Review
 
-**Prompt:** "Is my IAM policy overly permissive?" (policy document supplied as context)
+**Prompt:** "Read this managed policy ARN and find current AWS least-privilege guidance."
 
-**Expected explainable plan:**
-1. **IAM** `analyze_policy` — *why:* detect wildcard actions/resources and other risky statements.
-2. **AWS MCP Server** `search_documentation` — *why:* confirm *why* each flagged permission is risky and find the least-privilege pattern.
-3. **Correlate** — *why:* combine the policy analysis with documented best practice into an explained risk list.
-4. **Decide** — *why:* recommend least-privilege alternatives with rationale and confidence.
+**Expected static plan:**
+1. **IAM** `get_managed_policy_document` — read the caller-supplied managed policy ARN and version.
+2. **AWS MCP Server** or **Documentation** `search_documentation` — find current IAM least-privilege guidance.
+3. **Correlate** — group the policy document and guidance by source.
+4. **Decide** — summarize statements a human should inspect.
 
-**Domains exercised:** `security`, `docs`.
-
-This is the shortest workflow — a good demonstration that the planner scales *down*: it should NOT pull in
-CloudWatch/Pricing/CloudTrail when the request is purely about policy permissiveness.
+The IAM MCP server runs in its default read-only mode. This sample does not automatically prove that a policy is safe or unsafe and does not modify IAM resources.

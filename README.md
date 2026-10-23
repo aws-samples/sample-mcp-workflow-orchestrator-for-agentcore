@@ -4,7 +4,7 @@
 
 A **reference architecture for building multi-MCP-server systems** on Amazon Bedrock AgentCore. Instead of connecting to one server at a time, it shows how to plan multi-step investigations across multiple servers, execute them through a single Gateway connection, correlate cross-server evidence, and produce a cited answer — all while recording **why** each decision was made in an auditable log.
 
-The six AWS MCP servers included (CloudWatch, CloudTrail, IAM, Pricing, Documentation, AWS MCP Server) are just one configuration. **The architecture is the value, not the specific servers.** Swap them for any combination of MCP servers — internal tools, third-party APIs, domain-specific services — and the orchestration pattern works the same. The planner adapts automatically from the YAML registry; no code changes needed.
+The six AWS MCP servers included (CloudWatch, CloudTrail, IAM, Pricing, Documentation, AWS MCP Server) are one example configuration. **The architecture is the value, not the specific servers.** You can adapt the pattern to internal tools, third-party APIs, or domain-specific services without rewriting the orchestration loop. A new server still needs a reviewed manifest, container package, Gateway schema and allowlist, scoped IAM actions, and an exact tool argument contract in the planner prompt.
 
 **Use this as a blueprint** for building any multi-MCP-server system where you need explainable coordination, pluggable server discovery, and cross-server evidence correlation.
 
@@ -20,7 +20,7 @@ The six AWS MCP servers included (CloudWatch, CloudTrail, IAM, Pricing, Document
 Use this project when you need to:
 
 - **Build a multi-MCP-server architecture** — you want a proven pattern for coordinating 2+ MCP servers behind a single gateway with a planner that routes intelligently
-- **Adapt it to your own domain** — replace the AWS MCP servers with your own (databases, internal APIs, SaaS tools) by dropping YAML manifests and Dockerfiles — the orchestration logic stays the same
+- **Adapt it to your own domain** — use the same orchestration loop with reviewed manifests, container packaging, Gateway tool schemas, allowlists, scoped IAM actions, and planner argument contracts for your own databases, internal APIs, or SaaS tools
 - **Understand multi-server orchestration** — you want to learn how an AI agent decides which MCP servers to call, in what order, and how to combine their outputs
 - **Audit agent reasoning** — you need a human-readable decision log that records *why* each tool was chosen (explainability, compliance, debugging)
 - **Build on top of AgentCore** — you want a reference pattern showing how to integrate AgentCore Gateway, Lambda-hosted MCP servers, and Bedrock reasoning in one architecture
@@ -46,7 +46,7 @@ AWS has dozens of MCP servers — CloudWatch, CloudTrail, IAM, Pricing, Document
 
 **Today, this orchestration happens manually.** AWS's managed solutions (DevOps Agent, AWS MCP Server SOPs) do this as a black box — you can't see or modify the reasoning.
 
-**This repo is the open, explainable alternative.** A reference architecture that shows how to build a multi-MCP-server system with an AI planner that reasons across servers, records every decision, and lets you swap or add servers without changing code. The AWS servers are the demo — the pattern applies to any MCP servers.
+**This repo is the open, explainable alternative.** It shows how to build a multi-MCP-server system with an AI planner that reasons across servers and records every decision. The orchestration loop is reusable across domains; each added server still requires an explicit, reviewed tool and deployment contract.
 
 ---
 
@@ -74,10 +74,10 @@ IAM changes..." [Sources: iam-mcp, cloudtrail-mcp, cloudwatch-mcp, documentation
 
 - **Multi-server orchestration** — 6 MCP servers, 14 tools, all coordinated by a single planner
 - **Explainable planning** — every step records *why* a server was chosen (decision log you can audit)
-- **Pluggable registry** — add a server by dropping a YAML manifest; the planner adapts automatically
+- **Declarative capability registry** — YAML manifests describe available capabilities; Gateway schemas, allowlists, IAM actions, and planner argument contracts remain explicit and reviewable
 - **Evidence correlation** — merges outputs across servers, attributes sources
-- **Hosted on AWS** — Lambda functions behind AgentCore Gateway, all IAM auth, no OAuth
-- **One-command deploy** — `./scripts/deploy_lambda_servers.sh` creates everything from zero
+- **Hosted on AWS** — Lambda functions behind an `AWS_IAM`-authorized AgentCore Gateway with action-scoped, read-only Lambda permissions
+- **One-command deploy** — `./scripts/deploy_lambda_servers.sh` creates everything from zero in a dedicated sandbox account
 
 ---
 
@@ -118,21 +118,29 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full write-up.
 - Python 3.11+
 - AWS CLI v2 with configured credentials
 - [Finch](https://github.com/runfinch/finch) (or Docker) for container builds
-- An AWS account with Bedrock + AgentCore access in `us-east-1`
+- A **dedicated sandbox** AWS account with Bedrock + AgentCore access in `us-east-1`
+
+> Deploy only in a sandbox account. The tools read account metadata such as CloudTrail events, CloudWatch data, and IAM policies.
 
 ### Deploy
 
 ```bash
-git clone https://github.com/<you>/aws-mcp-workflow-orchestrator
-cd aws-mcp-workflow-orchestrator
+git clone https://github.com/aws-samples/sample-mcp-workflow-orchestrator-for-agentcore
+cd sample-mcp-workflow-orchestrator-for-agentcore
 
-# Deploy all infrastructure (Lambda, ECR, Gateway, IAM roles)
-./scripts/deploy_lambda_servers.sh --region us-east-1
+# Confirm you are using the intended sandbox account
+aws sts get-caller-identity
+
+# Deploy all infrastructure (Lambda, ECR, Gateway, IAM roles).
+# The script refuses to run if the account ID does not match.
+./scripts/deploy_lambda_servers.sh --sandbox-account-id <your-sandbox-account-id> --region us-east-1
 
 # Copy the output into .env
 cp .env.example .env
 # Edit .env with the AGENTCORE_GATEWAY_URL from deploy output
 ```
+
+The deploy script creates an `AWS_IAM`-authorized Gateway and verifies that an unsigned request is denied before it attaches any targets. It stops if any fixed-name resource already exists. Inspect collisions first; only remove them when you know they belong to a previous run of this sample.
 
 ### Install & Run
 
@@ -146,21 +154,38 @@ python -m orchestrator.cli "What are my CloudWatch alarms in us-east-1?"
 
 ### Test All Tools
 
+The live test calls real AWS APIs, so it requires an explicit opt-in and the sandbox account ID:
+
 ```bash
+MCP_INTEGRATION_TEST=1 \
+MCP_SANDBOX_ACCOUNT_ID=<your-sandbox-account-id> \
 python scripts/test_all_tools.py
 ```
 
+Expected output: `RESULTS: 14/14 passed, 0 failed`
+
 ### Tear Down
 
+Preview what will be deleted, then delete. Both commands verify that the active AWS account matches the declared personal test account:
+
 ```bash
-./scripts/destroy_lambda_servers.sh --region us-east-1
+./scripts/destroy_lambda_servers.sh \
+  --sandbox-account-id <your-test-account-id> \
+  --region us-east-1 \
+  --dry-run
+
+./scripts/destroy_lambda_servers.sh \
+  --sandbox-account-id <your-test-account-id> \
+  --region us-east-1
 ```
+
+The script deletes fixed-name sample resources, including all images in the matching ECR repositories. Use a personal test account with no important workloads or data, and inspect any name collision before cleanup.
 
 ---
 
 ## Adding a New MCP Server
 
-This is the core value proposition — **adding a server is a config change, not a code change.**
+The registry makes capability discovery declarative while keeping every executable contract explicit and reviewable.
 
 ### Step 1: Create a YAML manifest
 
@@ -191,11 +216,20 @@ CMD ["handler.lambda_handler"]
 
 ### Step 3: Add to the deploy script
 
-Add your server to the `SERVERS` list and `add_target` call in `scripts/deploy_lambda_servers.sh`, then redeploy.
+In `scripts/deploy_lambda_servers.sh` and the planner contract:
 
-### Step 4: Done
+1. Add your server to the `SERVERS` list.
+2. Add its tool names to the `allowed_tools` function. The Lambda handler rejects any tool not on this list.
+3. Add an `add_target` call with the exact Gateway input schema.
+4. Add only the AWS API actions the server needs to the Lambda role policy.
+5. Add the same tool names and argument fields to `PLAN_SYSTEM` in `orchestrator/planner.py` so the model can construct schema-valid calls.
+6. Add a safe integration-test case and validate it in a personal test account with no important workloads or data.
 
-The planner automatically includes the new server in its reasoning next time it runs. No planner code changes needed.
+Then redeploy.
+
+### Step 4: Validate the Integration
+
+The planner automatically sees the capability name and description from the YAML registry, but it also needs the explicit argument contract described above. This keeps the reusable orchestration loop unchanged without asking the model to guess a new tool's fields.
 
 ---
 

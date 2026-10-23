@@ -12,9 +12,10 @@ User Request
    → Knows which servers exist, what they can do, which domains they cover
     │
     ▼
-2. SOP CHECK (if mode=sop_first):
-   → Ask AWS MCP Server if a pre-built workflow matches the request
-   → If found, defer to it; otherwise proceed to custom planning
+2. SOP CHECK (experimental, only if mode=sop_first):
+   → Tries to ask AWS MCP Server whether a pre-built workflow matches
+   → If the check fails or finds nothing, proceeds to custom planning
+   → Not covered by the integration test; use authoritative mode for tested behavior
     │
     ▼
 3. PLAN: Call Bedrock (Claude Sonnet 5) with:
@@ -30,9 +31,9 @@ User Request
    → Decision log records the rationale and observation
     │
     ▼
-5. CORRELATE: Merge evidence from all servers
-   → Attribute each fact to its source server
-   → Flag conflicts if servers disagree
+5. CORRELATE: Group evidence from all servers
+   → Label each observation with its source server and tool
+   → The plan is static: later steps do not use earlier results
     │
     ▼
 6. SYNTHESIZE: Call Bedrock again with all evidence
@@ -51,22 +52,24 @@ cloudtrail-mcp___lookup_events
 iam-mcp___list_users
 pricing-mcp___get_pricing
 documentation-mcp___search_documentation
-aws-mcp-server___aws___search_documentation
 ```
+
+The Gateway requires SigV4-signed requests (`AWS_IAM` authorization). Unsigned requests are rejected.
 
 The Gateway Client maps the planner's `(server, tool)` pair to the full prefixed name:
 - `("cloudwatch-mcp", "get_active_alarms")` → `"cloudwatch-mcp___get_active_alarms"`
-- `("aws-mcp-server", "search_documentation")` → `"aws___search_documentation"` (direct session)
+- `("aws-mcp-server", "search_documentation")` → `"aws___search_documentation"`. This one does **not** go through the Gateway; the client calls the managed AWS MCP Server directly over a session-based connection.
 
 ## How Lambda Targets Work
 
 Each Lambda function:
 1. Receives the tool arguments directly from the Gateway (no JSON-RPC wrapper)
-2. Infers the tool name from the `MCP_SERVER_COMMAND` env var + argument patterns
-3. Spawns the awslabs MCP server as a subprocess
-4. Sends initialize → notifications/initialized → tools/call via stdin
-5. Reads the JSON-RPC response from stdout (threaded reader with timeout)
-6. Returns the tool result to the Gateway
+2. Reads the selected tool name from the AgentCore context metadata (`bedrockAgentCoreToolName`)
+3. Rejects the call if the tool is not in that function's `MCP_ALLOWED_TOOLS` list
+4. Spawns the awslabs MCP server as a subprocess
+5. Sends `initialize`, waits for the response, then sends `notifications/initialized` and `tools/call`
+6. Reads the JSON-RPC response from stdout (threaded reader with timeout)
+7. Returns the tool result to the Gateway
 
 ```
 Gateway → Lambda Event (just args)
@@ -76,14 +79,14 @@ Gateway → Lambda Event (just args)
                 │
                 ├── shutil.which("awslabs.cloudwatch-mcp-server")
                 ├── subprocess.Popen(server)
-                ├── stdin: initialize + notifications/initialized + tools/call
+                ├── stdin: initialize → (wait) → notifications/initialized + tools/call
                 ├── stdout: read response (threaded)
                 └── return result
 ```
 
 ## How the Planner Chooses Servers
 
-The planner receives the full capability catalog:
+The planner receives a capability catalog generated from the YAML manifests:
 
 ```
 - cloudwatch-mcp: get_metric_data (reading metrics...), get_active_alarms (checking alarms...)
@@ -98,6 +101,8 @@ The model decides based on:
 - **Capability matching**: "check alarms" → cloudwatch-mcp/get_active_alarms
 - **Dependency ordering**: confirm the problem first, then hunt for the cause
 - **Cross-server correlation**: spread steps across servers to build a complete picture
+
+The manifests currently carry capability names and descriptions, not complete input schemas. Exact tool argument fields are defined in `PLAN_SYSTEM` in `orchestrator/planner.py`. When adding a server, update that prompt contract together with the Gateway schema and integration test; otherwise the model would have to guess the tool arguments.
 
 ## Decision Log Format
 
@@ -121,12 +126,12 @@ All configuration is in `.env`:
 |----------|---------|---------|
 | `AGENTCORE_GATEWAY_URL` | Gateway MCP endpoint | (required) |
 | `AWS_REGION` | AWS region | `us-east-1` |
-| `PLANNER_MODE` | `sop_first` or `authoritative` | `sop_first` |
+| `PLANNER_MODE` | `sop_first` or `authoritative` | `sop_first` in code; `.env.example` sets `authoritative` |
 | `PLANNER_MODEL_ID` | Bedrock model for planning | `us.anthropic.claude-sonnet-5` |
 
 ## Two Planning Modes
 
 | Mode | Behavior |
 |------|----------|
-| `sop_first` | Check AWS MCP Server for a pre-built SOP first; if none fits, build a custom plan |
-| `authoritative` | Always build a custom plan over the registry (ignores SOPs) |
+| `authoritative` | Always build a custom plan over the registry. This is the tested mode. |
+| `sop_first` | Experimental. Tries to check AWS MCP Server for a pre-built workflow first; if the check fails or finds nothing, builds a custom plan. Not covered by the integration test. |
